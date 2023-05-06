@@ -1,0 +1,6 @@
+#ifndef DIS_OSAL_THREAD_THREAD_HPP
+#define DIS_OSAL_THREAD_THREAD_HPP
+
+namespace dis {}
+
+#endif // DIS_OSAL_THREAD_THREAD_HPP
