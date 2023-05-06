@@ -23,8 +23,12 @@
  *
  */
 
+#include <FreeRTOS.h>
+#include <task.h>
+#include <semphr.h>
+
 #include "dis/osal/thread/thread.hpp"
-#include "dis/osal/thread/semaphore.hpp"
+#include "dis/osal/thread/mutex.hpp"
 
 #include <Nucleo_F767ZI_GPIO.h>
 #include <Nucleo_F767ZI_Init.h>
@@ -35,28 +39,27 @@
 //(recommended min stack size per task)
 #define STACK_SIZE 128
 
-static void greenBlink(void);
-static void blueTripleBlink(void);
+static void blinkTwice(LED* led);
+static void lookBusy(uint32_t numIterations);
 
-void GreenTaskA(void* argument);
+void TaskA(void* argument);
 void TaskB(void* argumet);
+void TaskC(void* argumet);
 
-// create storage for a pointer to a semaphore
-dis::binary_semaphore global_semaphore(0);
+// create storage for a pointer to a mutex (this is the same container as a
+// semaphore)
+dis::mutex global_mutex{};
 
 int main(void) {
     HWInit();
     HAL_NVIC_SetPriorityGrouping(
         NVIC_PRIORITYGROUP_4);  // ensure proper priority grouping for freeRTOS
 
-    // create TaskA as a higher priority than TaskB.  In this example, this
-    // isn't strictly necessary since the tasks spend nearly all of their time
-    // blocked
-    assert_param(xTaskCreate(GreenTaskA, "GreenTaskA", STACK_SIZE, NULL,
-                             tskIDLE_PRIORITY + 2, NULL) == pdPASS);
-
-    // using an assert to ensure proper task creation
+    assert_param(xTaskCreate(TaskA, "TaskA", STACK_SIZE, NULL,
+                             tskIDLE_PRIORITY + 3, NULL) == pdPASS);
     assert_param(xTaskCreate(TaskB, "TaskB", STACK_SIZE, NULL,
+                             tskIDLE_PRIORITY + 2, NULL) == pdPASS);
+    assert_param(xTaskCreate(TaskC, "TaskC", STACK_SIZE, NULL,
                              tskIDLE_PRIORITY + 1, NULL) == pdPASS);
 
     // start the scheduler - shouldn't return unless there's a problem
@@ -76,33 +79,49 @@ int main(void) {
  * - giving the semaphore doesn't prevent taskA from continuing to run.
  *   Notice the green LED continues to blink at all times
  */
-void GreenTaskA(void* argument) {
-    uint_fast8_t count = 0;
+void TaskA(void* argument) {
+    using namespace std::chrono_literals;
+    const auto timeout = 200ms;
 
-    while (1) {
-        uint8_t numLoops = StmRand(3, 7);
-        if (++count >= numLoops) {
-            count = 0;
-            global_semaphore.release();
+    while (true) {
+        if (global_mutex.try_lock_for(timeout)) {
+            RedLed.Off();
+            blinkTwice(&GreenLed);
+            global_mutex.unlock();
+        } else {
+            RedLed.On();
         }
-        greenBlink();
+        // sleep for a bit to let other tasks run
+        dis::this_thread::sleep_for(std::chrono::milliseconds{StmRand(5, 30)});
     }
 }
 
 /**
- * wait to receive semPtr and triple blink the Blue LED
+ * this task just wakes up periodically and wastes time.
+ */
+void TaskB(void* argument) {
+    uint32_t counter = 0;
+    while (1) {
+        dis::this_thread::sleep_for(std::chrono::milliseconds{StmRand(10, 25)});
+        lookBusy(StmRand(250000, 750000));
+    }
+}
+
+/**
+ * wait to receive semPtr and double blink the Blue LED
  * If the semaphore isn't available within 500 mS, then
  * turn on the RED LED until the semaphore is available
  */
-void TaskB(void* argument) {
+void TaskC(void* argument) {
     using namespace std::chrono_literals;
-    const auto timeout = 500ms;
+    const auto timeout = 200ms;
 
-    while (1) {
-        //'take' the semaphore with a 500mS timeout
-        if (global_semaphore.try_aquire_for(timeout)) {
+    while (true) {
+        //'take' the semaphore with a 200mS timeout
+        if (global_mutex.try_lock_for(timeout)) {
             RedLed.Off();
-            blueTripleBlink();
+            blinkTwice(&BlueLed);
+            global_mutex.unlock();
         } else {
             // this code is called when the semaphore wasn't taken in time
             RedLed.On();
@@ -111,30 +130,25 @@ void TaskB(void* argument) {
 }
 
 /**
- * Blink the Green LED once using vTaskDelay
+ * Blink the desired LED twice
  */
-static void greenBlink(void) {
-    using namespace std::chrono_literals;
-    const auto delay = 100ms;
-
-    GreenLed.On();
-    dis::this_thread::sleep_for(delay);
-    GreenLed.Off();
-    dis::this_thread::sleep_for(delay);
+static void blinkTwice(LED* led) {
+    for (uint32_t i = 0; i < 2; i++) {
+        using namespace std::chrono_literals;
+        led->On();
+        dis::this_thread::sleep_for(43ms);
+        led->Off();
+        dis::this_thread::sleep_for(43ms);
+    }
 }
 
 /**
- * blink the Blue LED 3 times in rapid succession
- * using vtaskDelay
+ * run a simple loop for numIterations
+ * @param numIterations number of iterations to compute modulus
  */
-static void blueTripleBlink(void) {
-    using namespace std::chrono_literals;
-    const auto delay = 50ms;
-    // triple blink the Blue LED
-    for (uint_fast8_t i = 0; i < 3; i++) {
-        BlueLed.On();
-        dis::this_thread::sleep_for(delay);
-        BlueLed.Off();
-        dis::this_thread::sleep_for(delay);
+static void lookBusy(uint32_t numIterations) {
+    __attribute__((unused)) volatile uint32_t dontCare = 0;
+    for (int i = 0; i < numIterations; i++) {
+        dontCare = i % 4;
     }
 }
