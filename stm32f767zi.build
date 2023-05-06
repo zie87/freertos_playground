@@ -40,7 +40,7 @@ c_link_args = [
     '-mthumb',
     '-Wl,--gc-sections',
     ]
-cpp_args      = c_args + ['-fno-exception', '-fno-rtti']
+cpp_args      = c_args + ['-fno-exceptions', '-fno-rtti']
 cpp_link_args = c_link_args + []
 
 [host_machine]

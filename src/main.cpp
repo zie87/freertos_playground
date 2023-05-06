@@ -94,15 +94,15 @@ void BlueTask( void* argument )
 	while(1)
 	{
 		BlueLed.On();
-		vTaskDelay(200 / portTICK_PERIOD_MS);
+		vTaskDelay(1200 / portTICK_PERIOD_MS);
 		BlueLed.Off();
-		vTaskDelay(200 / portTICK_PERIOD_MS);
+		vTaskDelay(1200 / portTICK_PERIOD_MS);
 	}
 }
 
 void RedTask( void* argument )
 {
-	uint8_t firstRun = 1;
+	//uint8_t firstRun = 1;
 
 	while(1)
 	{
@@ -113,13 +113,13 @@ void RedTask( void* argument )
 		RedLed.Off();
 		vTaskDelay(500/ portTICK_PERIOD_MS);
 
-		if(firstRun == 1)
-		{
-			//tasks can delete one-another by passing the desired
-			//TaskHandle_t to vTaskDelete
-			vTaskDelete(blueTaskHandle);
-			firstRun = 0;
-		}
+		// if(firstRun == 1)
+		// {
+		// 	//tasks can delete one-another by passing the desired
+		// 	//TaskHandle_t to vTaskDelete
+		// 	vTaskDelete(blueTaskHandle);
+		// 	firstRun = 0;
+		// }
 	}
 }
 
