@@ -2,6 +2,7 @@
 #define DIS_OSAL_THREAD_MUTEX_HPP
 
 #include "dis/osal/thread/thread.hpp"
+#include "dis/osal/thread/detail/semaphore_policy.hpp"
 #include "dis/osal/utils/cpu.hpp"
 
 #include <FreeRTOS.h>
@@ -12,11 +13,13 @@
 namespace dis {
 
 class mutex {
-public:
-    using native_handle_type = ::SemaphoreHandle_t;
+    using policy_type = detail::semaphore_policy;
 
-    mutex() noexcept : m_handle{xSemaphoreCreateMutex()} {}
-    ~mutex() noexcept { if(m_handle) { ::vSemaphoreDelete(m_handle); } }
+public:
+    using native_handle_type = typename policy_type::native_handle_type;
+
+    mutex() noexcept : m_handle{policy_type::create(detail::mutex_tag{})} {}
+    ~mutex() noexcept { policy_type::destroy(m_handle); }
 
     mutex(mutex&& other) noexcept : m_handle(other.m_handle) {
         other.m_handle = nullptr;
@@ -30,16 +33,20 @@ public:
     mutex(const mutex&)            = delete;
     mutex& operator=(const mutex&) = delete;
 
-    inline void lock() noexcept { take(freertos::infinity_delay); }
-    [[nodiscard]] inline bool try_lock() noexcept { return take(0); }
+    inline void lock() noexcept {
+        policy_type::take(m_handle, freertos::infinity_delay);
+    }
+    [[nodiscard]] inline bool try_lock() noexcept {
+        return policy_type::take(m_handle, 0);
+    }
 
     template <class REP_T, class PERIOD_T>
     [[nodiscard]] inline bool try_lock_for(
         const std::chrono::duration<REP_T, PERIOD_T>& time) noexcept {
-        return take(freertos::to_ticks(time));
+        return policy_type::take(m_handle, freertos::to_ticks(time));
     }
 
-    inline void unlock() noexcept { give(); }
+    inline void unlock() noexcept { policy_type::give(m_handle); }
 
     void swap(mutex& other) noexcept {
         using std::swap;
@@ -47,30 +54,6 @@ public:
     }
 
 private:
-    inline bool take(TickType_t ticks) noexcept {
-        if (!this_cpu::is_in_isr()) {
-            return (::xSemaphoreTake(m_handle, ticks) == pdTRUE);
-        }
-
-        ::BaseType_t needs_yield = pdFALSE;
-        const bool success =
-            (::xSemaphoreTakeFromISR(m_handle, &needs_yield) == pdTRUE);
-        portYIELD_FROM_ISR(needs_yield);
-        return success;
-    }
-
-    inline bool give() noexcept {
-        if (!this_cpu::is_in_isr()) {
-            return (::xSemaphoreGive(m_handle) == pdPASS);
-        }
-
-        ::BaseType_t needs_yield = pdFALSE;
-        const bool success =
-            (::xSemaphoreGiveFromISR(m_handle, &needs_yield) == pdTRUE);
-        portYIELD_FROM_ISR(needs_yield);
-        return success;
-    }
-
     native_handle_type m_handle{nullptr};
 };
 

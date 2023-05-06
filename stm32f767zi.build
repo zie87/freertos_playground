@@ -37,7 +37,9 @@ c_link_args = [
     '-mfpu=fpv5-d16',
     '-mfloat-abi=hard', 
     '-mthumb',
+    '-Wl,--print-memory-usage',
     '-Wl,--gc-sections',
+    '-Wl,--no-warn-rwx-segment',
     ]
 cpp_args      = c_args + ['-fno-exceptions', '-fno-rtti']
 cpp_link_args = c_link_args + []

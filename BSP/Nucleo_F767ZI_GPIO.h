@@ -3,6 +3,9 @@
 
 #include <stdint.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 //Create a typedef defining a simple function pointer
 //to be used for LED's
@@ -21,5 +24,9 @@ uint_fast8_t ReadPushButton( void );
 extern LED BlueLed;
 extern LED GreenLed;
 extern LED RedLed;
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* BSP_NUCLEO_F767ZI_GPIO_H_ */

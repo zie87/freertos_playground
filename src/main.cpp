@@ -10,8 +10,8 @@
  * copies of the Software, and to permit persons to whom the Software is
  * furnished to do so, subject to the following conditions:
  *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
+ * The above copyright notice and this permission notice shall be included in all
+ * copies or substantial portions of the Software.
  *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
@@ -23,10 +23,11 @@
  *
  */
 
-#include "dis/osal/thread/thread.hpp"
-#include "dis/osal/thread/semaphore.hpp"
-
+#include <FreeRTOS.h>
 #include <Nucleo_F767ZI_GPIO.h>
+#include <task.h>
+#include <semphr.h>
+#include <timers.h>
 #include <Nucleo_F767ZI_Init.h>
 #include <stm32f7xx_hal.h>
 
@@ -35,106 +36,63 @@
 //(recommended min stack size per task)
 #define STACK_SIZE 128
 
-static void greenBlink(void);
-static void blueTripleBlink(void);
+void oneShotCallBack( TimerHandle_t xTimer );
+void repeatCallBack( TimerHandle_t xTimer );
 
-void GreenTaskA(void* argument);
-void TaskB(void* argumet);
+int main(void)
+{
+	HWInit();
+	HAL_NVIC_SetPriorityGrouping(NVIC_PRIORITYGROUP_4);	//ensure proper priority grouping for freeRTOS
 
-// create storage for a pointer to a semaphore
-dis::binary_semaphore global_semaphore(0);
+	TimerHandle_t repeatHandle =
+		xTimerCreate(	"myRepeatTimer",			//name for timer
+						500 /portTICK_PERIOD_MS,	//period of timer in ticks
+						pdTRUE,						//auto-reload flag
+						NULL,						//unique ID for timer
+						repeatCallBack);			//callback function
+	assert_param(repeatHandle != NULL);
+	xTimerStart(repeatHandle, 0);
 
-int main(void) {
-    HWInit();
-    HAL_NVIC_SetPriorityGrouping(
-        NVIC_PRIORITYGROUP_4);  // ensure proper priority grouping for freeRTOS
+	//start with Blue LED on - it will be turned off after one-shot fires
+	BlueLed.On();
+	TimerHandle_t oneShotHandle =
+		xTimerCreate(	"myOneShotTimer",			//name for timer
+						2200 /portTICK_PERIOD_MS,	//period of timer in ticks
+						pdFALSE,					//auto-reload flag
+						NULL,						//unique ID for timer
+						oneShotCallBack);			//callback function
+	assert_param(oneShotHandle != NULL);
 
-    // create TaskA as a higher priority than TaskB.  In this example, this
-    // isn't strictly necessary since the tasks spend nearly all of their time
-    // blocked
-    assert_param(xTaskCreate(GreenTaskA, "GreenTaskA", STACK_SIZE, NULL,
-                             tskIDLE_PRIORITY + 2, NULL) == pdPASS);
+	xTimerStart(oneShotHandle, 0);
 
-    // using an assert to ensure proper task creation
-    assert_param(xTaskCreate(TaskB, "TaskB", STACK_SIZE, NULL,
-                             tskIDLE_PRIORITY + 1, NULL) == pdPASS);
+	//wait for the push button
+	while(!ReadPushButton());
 
-    // start the scheduler - shouldn't return unless there's a problem
-    vTaskStartScheduler();
+	//start the scheduler - shouldn't return unless there's a problem
+	vTaskStartScheduler();
 
-    // if you've wound up here, there is likely an issue with overrunning the
-    // freeRTOS heap
-    while (1) {
-    }
+	//if you've wound up here, there is likely an issue with overrunning the freeRTOS heap
+	while(1)
+	{
+	}
 }
 
-/**
- * Task A periodically 'gives' semaphorePtr.  This version
- * has some variability in how often it will give the semaphore
- * NOTES:
- * - This semaphore isn't "given" to any task specifically
- * - giving the semaphore doesn't prevent taskA from continuing to run.
- *   Notice the green LED continues to blink at all times
- */
-void GreenTaskA(void* argument) {
-    uint_fast8_t count = 0;
-
-    while (1) {
-        uint8_t numLoops = StmRand(3, 7);
-        if (++count >= numLoops) {
-            count = 0;
-            global_semaphore.release();
-        }
-        greenBlink();
-    }
+void oneShotCallBack( TimerHandle_t xTimer )
+{
+	BlueLed.Off();
 }
 
-/**
- * wait to receive semPtr and triple blink the Blue LED
- * If the semaphore isn't available within 500 mS, then
- * turn on the RED LED until the semaphore is available
- */
-void TaskB(void* argument) {
-    using namespace std::chrono_literals;
-    const auto timeout = 500ms;
+void repeatCallBack( TimerHandle_t xTimer )
+{
+	static uint32_t counter = 0;
 
-    while (1) {
-        //'take' the semaphore with a 500mS timeout
-        if (global_semaphore.try_aquire_for(timeout)) {
-            RedLed.Off();
-            blueTripleBlink();
-        } else {
-            // this code is called when the semaphore wasn't taken in time
-            RedLed.On();
-        }
-    }
-}
-
-/**
- * Blink the Green LED once using vTaskDelay
- */
-static void greenBlink(void) {
-    using namespace std::chrono_literals;
-    const auto delay = 100ms;
-
-    GreenLed.On();
-    dis::this_thread::sleep_for(delay);
-    GreenLed.Off();
-    dis::this_thread::sleep_for(delay);
-}
-
-/**
- * blink the Blue LED 3 times in rapid succession
- * using vtaskDelay
- */
-static void blueTripleBlink(void) {
-    using namespace std::chrono_literals;
-    const auto delay = 50ms;
-    // triple blink the Blue LED
-    for (uint_fast8_t i = 0; i < 3; i++) {
-        BlueLed.On();
-        dis::this_thread::sleep_for(delay);
-        BlueLed.Off();
-        dis::this_thread::sleep_for(delay);
-    }
+	//toggle the green LED
+	if(counter++ % 2)
+	{
+		GreenLed.On();
+	}
+	else
+	{
+		GreenLed.Off();
+	}
 }
