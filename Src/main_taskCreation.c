@@ -28,7 +28,6 @@
 #include <stm32f7xx_hal.h>
 #include <Nucleo_F767ZI_GPIO.h>
 #include <task.h>
-#include <SEGGER_SYSVIEW.h>
 
 /**
  * 	function prototypes
@@ -54,7 +53,6 @@ static StaticTask_t RedTaskTCB;
 int main(void)
 {
 	HWInit();
-	SEGGER_SYSVIEW_Conf();
 
 	//using an inlined if statement with an infinite while loop to stop in case
 	//the task wasn't created successfully
@@ -80,8 +78,6 @@ int main(void)
 
 void GreenTask(void *argument)
 {
-	SEGGER_SYSVIEW_PrintfHost("Task1 running \
-							   while Green LED is on\n");
 	GreenLed.On();
 	vTaskDelay(1500/ portTICK_PERIOD_MS);
 	GreenLed.Off();
@@ -97,7 +93,6 @@ void BlueTask( void* argument )
 {
 	while(1)
 	{
-		SEGGER_SYSVIEW_PrintfHost("BlueTaskRunning\n");
 		BlueLed.On();
 		vTaskDelay(200 / portTICK_PERIOD_MS);
 		BlueLed.Off();
@@ -113,7 +108,6 @@ void RedTask( void* argument )
 	{
 		lookBusy();
 
-		SEGGER_SYSVIEW_PrintfHost("RedTaskRunning\n");
 		RedLed.On();
 		vTaskDelay(500/ portTICK_PERIOD_MS);
 		RedLed.Off();
@@ -136,5 +130,4 @@ void lookBusy( void )
 	{
 		dontCare = i % 4;
 	}
-	SEGGER_SYSVIEW_PrintfHost("looking busy %d\n", dontCare);
 }

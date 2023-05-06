@@ -1,7 +1,6 @@
 #include <FreeRTOS.h>
 #include "Nucleo_F767ZI_Init.h"
 #include <main.h>
-#include <SEGGER_SYSVIEW.h>
 
 // declarations for 'private' functions not exposed via header file
 void SystemClock_Config(void);
@@ -184,8 +183,6 @@ void Error_Handler(void)
   */
 void assert_failed(uint8_t *file, uint32_t line)
 {
-  SEGGER_SYSVIEW_PrintfHost("Assertion Failed:file %s \
-                            on line %d\r\n", file, line);
   while(1);
 }
 #endif /* USE_FULL_ASSERT */

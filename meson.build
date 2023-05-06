@@ -42,16 +42,12 @@ freertos_inc_dirs = include_directories(
     join_paths(freertos_dir, 'Source', 'portable', 'GCC', 'ARM_CM7', 'r0p1'),
 )
 
-segger_dir = join_paths(third_party_dir, 'SEGGER')
-segger_inc_dirs = include_directories(segger_dir)
-
 stm32_thread_inc_dirs = [
     include_directories('Inc'),
     bsp_inc_dirs,
     cmsis_inc_dirs,
     hal_inc_dirs,
     freertos_inc_dirs,
-    segger_inc_dirs,
 ]
 stm32_thread_c_args = [cmsis_c_args, hal_c_args]
 stm32_thread_srcs = [
@@ -61,17 +57,6 @@ stm32_thread_srcs = [
     'Src/stm32f7xx_it.c',
     'Src/syscalls.c',
     'Src/system_stm32f7xx.c',
-
-    join_paths(segger_dir, 'SEGGER_RTT.c'),
-    join_paths(segger_dir, 'SEGGER_RTT_ASM_ARMv7M.S'),
-    join_paths(segger_dir, 'SEGGER_RTT_Syscalls_GCC.c'),
-    join_paths(segger_dir, 'SEGGER_RTT_Syscalls_IAR.c'),
-    join_paths(segger_dir, 'SEGGER_RTT_Syscalls_KEIL.c'),
-    join_paths(segger_dir, 'SEGGER_RTT_Syscalls_SES.c'),
-    join_paths(segger_dir, 'SEGGER_RTT_printf.c'),
-    join_paths(segger_dir, 'SEGGER_SYSVIEW.c'),
-    join_paths(segger_dir, 'SEGGER_SYSVIEW_Config_FreeRTOS.c'),
-    join_paths(segger_dir, 'SEGGER_SYSVIEW_FreeRTOS.c'),
 
     join_paths(freertos_dir, 'Source', 'portable', 'MemMang', 'heap_4.c'),
     join_paths(
