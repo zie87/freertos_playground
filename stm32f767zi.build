@@ -1,0 +1,50 @@
+[constants]
+arch = 'arm-none-eabi'
+
+[binaries]
+c           = arch + '-gcc'
+cpp         = arch + '-g++'
+ld          = arch + '-ld'
+ar          = arch + '-ar'
+as          = arch + '-as'
+size        = arch + '-size'
+objdump     = arch + '-objdump'
+objcopy     = arch + '-objcopy'
+readelf     = arch + '-readelf'
+strip       = arch + '-strip'
+
+[built-in options]
+b_staticpic = 'false'
+default_library = 'static'
+c_std = 'gnu11'
+
+c_args = [
+    '-mcpu=cortex-m7', 
+    '-D__weak=__attribute__((weak))',
+    '-D__packed=__attribute__((__packed__))',
+    '-ffunction-sections',
+    '-fdata-sections',
+    '-fstack-usage', 
+    '--specs=nano.specs',
+    '-mfpu=fpv5-d16',
+    '-mfloat-abi=hard',
+    '-mthumb',
+    ]
+c_link_args = [
+    '--specs=nano.specs',
+    '--specs=nosys.specs',
+    '-mcpu=cortex-m7', 
+    '-static',
+    '-mfpu=fpv5-d16',
+    '-mfloat-abi=hard', 
+    '-mthumb',
+    '-Wl,--gc-sections',
+    ]
+cpp_args      = c_args + ['-fno-exception', '-fno-rtti']
+cpp_link_args = c_link_args + []
+
+[host_machine]
+system     = 'stm32f767zi'
+cpu_family = 'arm'
+cpu        = 'cortex-m7'
+endian     = 'little'
