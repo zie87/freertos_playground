@@ -24,55 +24,43 @@
  */
 
 #include <FreeRTOS.h>
+#include <task.h>
+#include <semphr.h>
+
+#include "dis/osal/thread/thread.hpp"
+#include "dis/osal/thread/mutex.hpp"
+
 #include <Nucleo_F767ZI_GPIO.h>
 #include <Nucleo_F767ZI_Init.h>
 #include <stm32f7xx_hal.h>
-#include <task.h>
-
-#include "dis/osal/debug/contracts.hpp"
-#include "dis/osal/utils/function_view.hpp"
-#include "dis/osal/thread/thread.hpp"
-
-/**
- * 	function prototypes
- */
-void GreenTask(void* argument);
-void BlueTask(void* argument);
-void RedTask(void* argument);
-void lookBusy(void);
-
-// the address of Task2Handle is passed to xTaskCreate.
-// this global variable will be used by Task3 to delete BlueTask.
-TaskHandle_t blueTaskHandle;
 
 // some common variables to use for each task
 // 128 * 4 = 512 bytes
 //(recommended min stack size per task)
 #define STACK_SIZE 128
 
-// define stack and task control block (TCB) for the red task
-static StackType_t RedTaskStack[STACK_SIZE];
-static StaticTask_t RedTaskTCB;
+static void blinkTwice(LED* led);
+static void lookBusy(uint32_t numIterations);
+
+void TaskA(void* argument);
+void TaskB(void* argumet);
+void TaskC(void* argumet);
+
+// create storage for a pointer to a mutex (this is the same container as a
+// semaphore)
+dis::mutex global_mutex{};
 
 int main(void) {
     HWInit();
+    HAL_NVIC_SetPriorityGrouping(
+        NVIC_PRIORITYGROUP_4);  // ensure proper priority grouping for freeRTOS
 
-    // using an inlined if statement with an infinite while loop to stop in case
-    // the task wasn't created successfully
-    if (xTaskCreate(GreenTask, "GreenTask", STACK_SIZE, NULL,
-                    tskIDLE_PRIORITY + 2, NULL) != pdPASS) {
-        while (1)
-            ;
-    }
-
-    // using an assert to ensure proper task creation
-    assert_param(xTaskCreate(BlueTask, "BlueTask", STACK_SIZE, NULL,
-                             tskIDLE_PRIORITY + 1, &blueTaskHandle) == pdPASS);
-
-    // xTaskCreateStatic returns task hanlde
-    // always passes since memory was statically allocated
-    xTaskCreateStatic(RedTask, "RedTask", STACK_SIZE, NULL,
-                      tskIDLE_PRIORITY + 1, RedTaskStack, &RedTaskTCB);
+    assert_param(xTaskCreate(TaskA, "TaskA", STACK_SIZE, NULL,
+                             tskIDLE_PRIORITY + 3, NULL) == pdPASS);
+    assert_param(xTaskCreate(TaskB, "TaskB", STACK_SIZE, NULL,
+                             tskIDLE_PRIORITY + 2, NULL) == pdPASS);
+    assert_param(xTaskCreate(TaskC, "TaskC", STACK_SIZE, NULL,
+                             tskIDLE_PRIORITY + 1, NULL) == pdPASS);
 
     // start the scheduler - shouldn't return unless there's a problem
     vTaskStartScheduler();
@@ -83,39 +71,84 @@ int main(void) {
     }
 }
 
-void GreenTask([[maybe_unused]] void* argument) {
+/**
+ * Task A periodically 'gives' semaphorePtr.  This version
+ * has some variability in how often it will give the semaphore
+ * NOTES:
+ * - This semaphore isn't "given" to any task specifically
+ * - giving the semaphore doesn't prevent taskA from continuing to run.
+ *   Notice the green LED continues to blink at all times
+ */
+void TaskA(void* argument) {
     using namespace std::chrono_literals;
+    const auto timeout = 200ms;
 
-    GreenLed.On();
-    dis::this_thread::sleep_for(1500ms);
-    GreenLed.Off();
-
-    // a task can delete itself by passing NULL to vTaskDelete
-    vTaskDelete(NULL);
-
-    // task never get's here
-    GreenLed.On();
-}
-
-void BlueTask([[maybe_unused]] void* argument) {
-    using namespace std::chrono_literals;
-    constexpr auto sleep_time = 1s;
-    while (1) {
-        BlueLed.On();
-        dis::this_thread::sleep_for(sleep_time);
-        BlueLed.Off();
-        dis::this_thread::sleep_for(sleep_time);
+    while (true) {
+        if (global_mutex.try_lock_for(timeout)) {
+            RedLed.Off();
+            blinkTwice(&GreenLed);
+            global_mutex.unlock();
+        } else {
+            RedLed.On();
+        }
+        // sleep for a bit to let other tasks run
+        dis::this_thread::sleep_for(std::chrono::milliseconds{StmRand(5, 30)});
     }
 }
 
-void RedTask([[maybe_unused]] void* argument) {
-    using namespace std::chrono_literals;
-    constexpr auto sleep_time = 500ms;
-
+/**
+ * this task just wakes up periodically and wastes time.
+ */
+void TaskB(void* argument) {
+    uint32_t counter = 0;
     while (1) {
-        RedLed.On();
-        dis::this_thread::sleep_for(sleep_time);
-        RedLed.Off();
-        dis::this_thread::sleep_for(sleep_time);
+        dis::this_thread::sleep_for(std::chrono::milliseconds{StmRand(10, 25)});
+        lookBusy(StmRand(250000, 750000));
+    }
+}
+
+/**
+ * wait to receive semPtr and double blink the Blue LED
+ * If the semaphore isn't available within 500 mS, then
+ * turn on the RED LED until the semaphore is available
+ */
+void TaskC(void* argument) {
+    using namespace std::chrono_literals;
+    const auto timeout = 200ms;
+
+    while (true) {
+        //'take' the semaphore with a 200mS timeout
+        if (global_mutex.try_lock_for(timeout)) {
+            RedLed.Off();
+            blinkTwice(&BlueLed);
+            global_mutex.unlock();
+        } else {
+            // this code is called when the semaphore wasn't taken in time
+            RedLed.On();
+        }
+    }
+}
+
+/**
+ * Blink the desired LED twice
+ */
+static void blinkTwice(LED* led) {
+    for (uint32_t i = 0; i < 2; i++) {
+        using namespace std::chrono_literals;
+        led->On();
+        dis::this_thread::sleep_for(43ms);
+        led->Off();
+        dis::this_thread::sleep_for(43ms);
+    }
+}
+
+/**
+ * run a simple loop for numIterations
+ * @param numIterations number of iterations to compute modulus
+ */
+static void lookBusy(uint32_t numIterations) {
+    __attribute__((unused)) volatile uint32_t dontCare = 0;
+    for (int i = 0; i < numIterations; i++) {
+        dontCare = i % 4;
     }
 }

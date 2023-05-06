@@ -14,7 +14,7 @@ constexpr TickType_t infinity_delay = portMAX_DELAY;
 constexpr TickType_t tick_rate_ms   = portTICK_RATE_MS;
 inline constexpr TickType_t to_ticks(std::chrono::milliseconds time) noexcept {
     const auto ticks = (time.count() * configTICK_RATE_HZ) / 1000;
-    return {ticks};
+    return static_cast<TickType_t>(ticks);
 }
 }  // namespace freertos
 
