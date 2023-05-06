@@ -10,8 +10,8 @@
  * copies of the Software, and to permit persons to whom the Software is
  * furnished to do so, subject to the following conditions:
  *
- * The above copyright notice and this permission notice shall be included in all
- * copies or substantial portions of the Software.
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
  *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
@@ -24,21 +24,47 @@
  */
 
 #include <FreeRTOS.h>
+#include <Nucleo_F767ZI_GPIO.h>
 #include <Nucleo_F767ZI_Init.h>
 #include <stm32f7xx_hal.h>
-#include <Nucleo_F767ZI_GPIO.h>
 #include <task.h>
+
+#if (configSUPPORT_DYNAMIC_ALLOCATION == 1)
+#ifdef __cplusplus
+extern "C" {
+#endif
+void* malloc(size_t size) { return pvPortMalloc(size); }
+void free(void* p) { vPortFree(p); }
+#ifdef __cplusplus
+}
+#endif
+#endif /* (configSUPPORT_DYNAMIC_ALLOCATION == 1) */
+
+#if (configSUPPORT_DYNAMIC_ALLOCATION == 1)
+
+void* operator new(size_t size) { return pvPortMalloc(size); }
+void* operator new[](size_t size) { return pvPortMalloc(size); }
+
+void operator delete(void* p) { vPortFree(p); }
+void operator delete[](void* p) { vPortFree(p); }
+
+#endif /* (configSUPPORT_DYNAMIC_ALLOCATION == 1) */
+
+#include "dis/osal/debug/contracts.hpp"
+#include "dis/osal/utils/function_view.hpp"
+#include "dis/osal/thread/thread.hpp"
+
 
 /**
  * 	function prototypes
  */
-void GreenTask(void *argument);
-void BlueTask(void *argument);
-void RedTask(void *argument);
-void lookBusy( void );
+void GreenTask(void* argument);
+void BlueTask(void* argument);
+void RedTask(void* argument);
+void lookBusy(void);
 
-//the address of Task2Handle is passed to xTaskCreate.
-//this global variable will be used by Task3 to delete BlueTask.
+// the address of Task2Handle is passed to xTaskCreate.
+// this global variable will be used by Task3 to delete BlueTask.
 TaskHandle_t blueTaskHandle;
 
 // some common variables to use for each task
@@ -46,88 +72,72 @@ TaskHandle_t blueTaskHandle;
 //(recommended min stack size per task)
 #define STACK_SIZE 128
 
-//define stack and task control block (TCB) for the red task
+// define stack and task control block (TCB) for the red task
 static StackType_t RedTaskStack[STACK_SIZE];
 static StaticTask_t RedTaskTCB;
 
-int main(void)
-{
-	HWInit();
+int main(void) {
+    HWInit();
 
-	//using an inlined if statement with an infinite while loop to stop in case
-	//the task wasn't created successfully
-	if (xTaskCreate(GreenTask, "GreenTask", STACK_SIZE, NULL, tskIDLE_PRIORITY + 2, NULL) != pdPASS){ while(1); }
+    // using an inlined if statement with an infinite while loop to stop in case
+    // the task wasn't created successfully
+    if (xTaskCreate(GreenTask, "GreenTask", STACK_SIZE, NULL,
+                    tskIDLE_PRIORITY + 2, NULL) != pdPASS) {
+        while (1)
+            ;
+    }
 
-	//using an assert to ensure proper task creation
-	assert_param(xTaskCreate(BlueTask, "BlueTask", STACK_SIZE, NULL, tskIDLE_PRIORITY + 1, &blueTaskHandle) == pdPASS);
+    // using an assert to ensure proper task creation
+    assert_param(xTaskCreate(BlueTask, "BlueTask", STACK_SIZE, NULL,
+                             tskIDLE_PRIORITY + 1, &blueTaskHandle) == pdPASS);
 
-	//xTaskCreateStatic returns task hanlde
-	//always passes since memory was statically allocated
-	xTaskCreateStatic(	RedTask, "RedTask", STACK_SIZE, NULL,
-						tskIDLE_PRIORITY + 1,
-						RedTaskStack, &RedTaskTCB);
+    // xTaskCreateStatic returns task hanlde
+    // always passes since memory was statically allocated
+    xTaskCreateStatic(RedTask, "RedTask", STACK_SIZE, NULL,
+                      tskIDLE_PRIORITY + 1, RedTaskStack, &RedTaskTCB);
 
-	//start the scheduler - shouldn't return unless there's a problem
-	vTaskStartScheduler();
+    // start the scheduler - shouldn't return unless there's a problem
+    vTaskStartScheduler();
 
-	//if you've wound up here, there is likely an issue with overrunning the freeRTOS heap
-	while(1)
-	{
-	}
+    // if you've wound up here, there is likely an issue with overrunning the
+    // freeRTOS heap
+    while (1) {
+    }
 }
 
-void GreenTask(void *argument)
-{
-	GreenLed.On();
-	vTaskDelay(1500/ portTICK_PERIOD_MS);
-	GreenLed.Off();
+void GreenTask([[maybe_unused]] void* argument) {
+    using namespace std::chrono_literals;
 
-	//a task can delete itself by passing NULL to vTaskDelete
-	vTaskDelete(NULL);
+    GreenLed.On();
+    dis::this_thread::sleep_for(1500ms);
+    GreenLed.Off();
 
-	//task never get's here
-	GreenLed.On();
+    // a task can delete itself by passing NULL to vTaskDelete
+    vTaskDelete(NULL);
+
+    // task never get's here
+    GreenLed.On();
 }
 
-void BlueTask( void* argument )
-{
-	while(1)
-	{
-		BlueLed.On();
-		vTaskDelay(1200 / portTICK_PERIOD_MS);
-		BlueLed.Off();
-		vTaskDelay(1200 / portTICK_PERIOD_MS);
-	}
+void BlueTask([[maybe_unused]] void* argument) {
+    using namespace std::chrono_literals;
+    constexpr auto sleep_time = 1s;
+    while (1) {
+        BlueLed.On();
+        dis::this_thread::sleep_for(sleep_time);
+        BlueLed.Off();
+        dis::this_thread::sleep_for(sleep_time);
+    }
 }
 
-void RedTask( void* argument )
-{
-	//uint8_t firstRun = 1;
+void RedTask([[maybe_unused]] void* argument) {
+    using namespace std::chrono_literals;
+    constexpr auto sleep_time = 500ms;
 
-	while(1)
-	{
-		lookBusy();
-
-		RedLed.On();
-		vTaskDelay(500/ portTICK_PERIOD_MS);
-		RedLed.Off();
-		vTaskDelay(500/ portTICK_PERIOD_MS);
-
-		// if(firstRun == 1)
-		// {
-		// 	//tasks can delete one-another by passing the desired
-		// 	//TaskHandle_t to vTaskDelete
-		// 	vTaskDelete(blueTaskHandle);
-		// 	firstRun = 0;
-		// }
-	}
-}
-
-void lookBusy( void )
-{
-	volatile uint32_t dontCare = 0;
-	for(int i = 0; i < 50E3; i++)
-	{
-		dontCare = i % 4;
-	}
+    while (1) {
+        RedLed.On();
+        dis::this_thread::sleep_for(sleep_time);
+        RedLed.Off();
+        dis::this_thread::sleep_for(sleep_time);
+    }
 }
