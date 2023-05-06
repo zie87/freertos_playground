@@ -16,7 +16,6 @@ strip       = arch + '-strip'
 [built-in options]
 b_staticpic = 'false'
 default_library = 'static'
-c_std = 'gnu11'
 
 c_args = [
     '-mcpu=cortex-m7', 

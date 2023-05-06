@@ -1,4 +1,9 @@
-project('stm32_thread', ['c', 'cpp'], version: '0.1')
+project(
+    'stm32_thread',
+    ['c', 'cpp'],
+    version: '0.1',
+    default_options: ['c_std=gnu11', 'cpp_std=c++20', 'warning_level=3'],
+)
 
 stm32_thread_linker_script = join_paths(
     meson.current_source_dir(),
@@ -59,16 +64,16 @@ hal_srcs = [
 ]
 
 hal_lib = library(
-  'stm32_hal',
-  sources: hal_srcs,
-  include_directories: [cmsis_inc_dirs, hal_inc_dirs, config_inc_dirs],
-  c_args: [cmsis_c_args, hal_c_args]
+    'stm32_hal',
+    sources: hal_srcs,
+    include_directories: [cmsis_inc_dirs, hal_inc_dirs, config_inc_dirs],
+    c_args: [cmsis_c_args, hal_c_args],
 )
 
 hal_dep = declare_dependency(
-  link_with: hal_lib,
-  include_directories: [cmsis_inc_dirs, hal_inc_dirs, config_inc_dirs],
-  compile_args: [cmsis_c_args, hal_c_args],
+    link_with: hal_lib,
+    include_directories: [cmsis_inc_dirs, hal_inc_dirs, config_inc_dirs],
+    compile_args: [cmsis_c_args, hal_c_args],
 )
 
 third_party_dir = join_paths(
@@ -105,16 +110,16 @@ freertos_srcs = [
 ]
 
 freertos_lib = library(
-  'freertos',
-  sources: freertos_srcs,
-  include_directories: [freertos_inc_dirs, config_inc_dirs],
-  dependencies: hal_dep,
+    'freertos',
+    sources: freertos_srcs,
+    include_directories: [freertos_inc_dirs, config_inc_dirs],
+    dependencies: hal_dep,
 )
 
 freertos_dep = declare_dependency(
-  link_with: freertos_lib,
-  include_directories: [freertos_inc_dirs, config_inc_dirs],
-  dependencies: hal_dep,
+    link_with: freertos_lib,
+    include_directories: [freertos_inc_dirs, config_inc_dirs],
+    dependencies: hal_dep,
 )
 
 stm32_thread_inc_dirs = [
@@ -149,7 +154,7 @@ stm32_thread = executable(
 objcopy = '@0@'.format(find_program('objcopy').path())
 objdump = '@0@'.format(find_program('objdump').path())
 size = '@0@'.format(find_program('size').path())
- 
+
 custom_target(
     'stm32_thread_size',
     input: stm32_thread,
