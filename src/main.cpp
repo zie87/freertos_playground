@@ -29,31 +29,9 @@
 #include <stm32f7xx_hal.h>
 #include <task.h>
 
-#if (configSUPPORT_DYNAMIC_ALLOCATION == 1)
-#ifdef __cplusplus
-extern "C" {
-#endif
-void* malloc(size_t size) { return pvPortMalloc(size); }
-void free(void* p) { vPortFree(p); }
-#ifdef __cplusplus
-}
-#endif
-#endif /* (configSUPPORT_DYNAMIC_ALLOCATION == 1) */
-
-#if (configSUPPORT_DYNAMIC_ALLOCATION == 1)
-
-void* operator new(size_t size) { return pvPortMalloc(size); }
-void* operator new[](size_t size) { return pvPortMalloc(size); }
-
-void operator delete(void* p) { vPortFree(p); }
-void operator delete[](void* p) { vPortFree(p); }
-
-#endif /* (configSUPPORT_DYNAMIC_ALLOCATION == 1) */
-
 #include "dis/osal/debug/contracts.hpp"
 #include "dis/osal/utils/function_view.hpp"
 #include "dis/osal/thread/thread.hpp"
-
 
 /**
  * 	function prototypes

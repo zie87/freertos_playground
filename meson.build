@@ -131,6 +131,8 @@ stm32_thread_c_args = []
 stm32_thread_srcs = [
     stm32_thread_startup_file,
     'src/main.cpp',
+    'src/utils/malloc_free.c',
+    'src/utils/new_delete.cpp',
     'src/stm32f7xx_hal_msp.c',
     'src/stm32f7xx_it.c',
     'src/syscalls.c',
